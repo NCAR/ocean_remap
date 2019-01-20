@@ -1,0 +1,5 @@
+/glade/scratch/mickelso/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-02/CMIP6/CMIP/NCAR/CESM2/historical/r1i1p4f1/Omon/sob/gn/v20181022/sob_Omon_CESM2_historical_r1i1p4f1_gn_185001-201412.nc
+/glade/scratch/mickelso/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-02/CMIP6/CMIP/NCAR/CESM2/historical/r1i1p4f1/Omon/sos/gn/v20181022/sos_Omon_CESM2_historical_r1i1p4f1_gn_185001-201412.nc
+/glade/scratch/mickelso/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-02/CMIP6/CMIP/NCAR/CESM2/historical/r1i1p4f1/Omon/sossq/gn/v20181022/sossq_Omon_CESM2_historical_r1i1p4f1_gn_185001-201412.nc
+/glade/scratch/mickelso/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-02/CMIP6/CMIP/NCAR/CESM2/historical/r1i1p4f1/Omon/tauuo/gn/v20181022/tauuo_Omon_CESM2_historical_r1i1p4f1_gn_185001-201412.nc
+/glade/scratch/mickelso/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-02/CMIP6/CMIP/NCAR/CESM2/historical/r1i1p4f1/Omon/tauvo/gn/v20181022/tauvo_Omon_CESM2_historical_r1i1p4f1_gn_185001-201412.nc

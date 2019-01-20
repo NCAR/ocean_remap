@@ -1,0 +1,218 @@
+#! /usr/bin/env python
+
+from argparse import ArgumentParser
+import glob, sys, os, fnmatch
+import netCDF4 as nc
+
+from asaptools import partition, simplecomm, vprinter, timekeeper
+
+import ocean_remap as remap
+
+def cli(argv=None):
+
+    desc = """This tool regrids 2d and 3d fields within a NetCDF file."""
+
+    parser = ArgumentParser(description=desc)
+
+    parser.add_argument('-c', '--chunk', default=None,
+                        help=('The amount of time slices to operate on at once.'))
+
+    parser.add_argument('-6', '--cmip6', default=None,
+                        help=('Full path to a text file that contains per line MIP_TABLE:VARNAME.  This list and the data'
+                              'path can be pieced together to find all files to be regridded.'))
+
+    parser.add_argument('-f', '--filelist', default=None, 
+                        help=('Full path to a text file that contains a full path file name per line that needs to be regridded.'))   
+
+    parser.add_argument('-2', '--matrix_2d_fname', default=None,
+                        help=('Full path to the matrix 2d file.'))
+
+    parser.add_argument('-3', '--matrix_3d_fname', default=None,
+                        help=('Full path to the matrix 3d file.'))
+
+    parser.add_argument('-i', '--indir', default=None, 
+                        help=('Full path to a base directory to find files to regrid.  All files with the *.nc found'
+                               'under this path will be regridded, unless restricted with the cmip6 or filelist options.'))
+
+    parser.add_argument('-o', '--outdir', default=None, help=('The output directory (base directory if CMIP6)'))
+
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    """
+    example usage of ocean_remap class
+    """
+
+    args = cli(argv)
+    print 'cmip6:',args.cmip6
+    print 'filelist:',args.filelist
+    print 'matrix_2d_fname:',args.matrix_2d_fname
+    print 'matrix_3d_fname:',args.matrix_3d_fname
+    print 'indir:',args.indir
+    print 'outdir:',args.outdir
+    print 'chunk size:',args.chunk
+
+    # setup an overall timer
+    timer = timekeeper.TimeKeeper()
+    timer.start("Total Time")
+
+    # Create MPI communicator
+    scomm = simplecomm.create_comm(serial=False)
+    # Get rank and size
+    rank = scomm.get_rank()
+    size = scomm.get_size()
+
+
+    files = []
+    if rank == 0:
+        # Find files to regrid
+        #Do we have a cmip6 variable list?
+        if args.cmip6 is not None:
+            if args.indir is not None:
+                with open(args.cmip6) as f:
+                    for l in f:
+                        t = l.strip().split(':')[0]
+                        v = l.strip().split(':')[1]
+                        print 'Trying to find: '+v+'_'+t+"*.nc"
+                        for root, dirs, fns in os.walk(args.indir):
+                            for fn in fnmatch.filter(fns, v+'_'+t+"*.nc"):
+                                if 'tmp.nc' not in fn and 'gr' not in fn.split('_'):
+                                    print 'Found: ',fn.split('/')
+                                    files.append(os.path.join(root, fn))
+            else:
+                print "You need to specify an indir argument with the cmip6 argument"
+                file = None
+        elif args.filelist is not None:
+            with open(args.filelist) as f:
+                for l in f:
+                    files.append(l.strip())
+        elif args.indir is not None:
+            for root, dirs, fns in os.walk(args.indir):
+                for fn in fnmatch.filter(fns, "*.nc"):
+                    files.append(os.path.join(root, fn))
+        else:
+            print 'Exiting because no input path or files where given'
+            files = None
+
+    # All call this
+    scomm.sync()
+    files = scomm.partition(files, func=partition.Duplicate(), involved=True)
+    if files is None:
+        sys.exit()
+
+    matrix_2d_fname = 'POP_gx1v7_to_latlon_1x1_0E_mask_conserve_20181015.nc'
+    matrix_2d = remap.ocean_remap(args.matrix_2d_fname)
+
+    matrix_3d_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
+    matrix_3d = remap.ocean_remap(args.matrix_3d_fname)
+
+    # names of coordinate dimensions in output files
+    dim_names = {'depth': 'olevel', 'lat': 'latitude', 'lon': 'longitude'}
+    dim_names = {'depth': 'lev', 'lat': 'lat', 'lon': 'lon'}
+
+    scomm.sync()
+    # Have only root create these files
+    if rank == 0:
+        if len(files) > 0 and args.cmip6 is not None:
+            temp = files[0]
+            # create CMIP Ofx files
+            for var_name in ('areacello', 'deptho', 'thkcello', 'volcello'):
+                new_outdir = temp.replace(temp.split('/')[-4],var_name).replace(temp.split('/')[-5],'Ofx').replace(temp.split('/')[-3],'gr').replace('_'+temp.split('_')[-1],'')+'.nc' 
+                d = os.path.dirname(new_outdir)
+                if not os.path.exists(d):
+                    os.makedirs(d)
+                fptr_out = nc.Dataset(new_outdir, 'w') # pylint: disable=E1101
+                matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
+                matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
+                matrix_3d.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names, var_name)
+
+    # Create a master slave parallel protocol
+    GWORK_TAG = 10 # global comm mpi tag
+    if (rank == 0):
+        for i in files:
+            scomm.ration(data=i, tag=GWORK_TAG)
+        for i in range(1,size):
+            scomm.ration(data=-99, tag=GWORK_TAG)
+    else:
+        f = -999
+        while f != -99:
+            f = scomm.ration(tag=GWORK_TAG)
+            if f != -99:
+                print "working on: ",f
+                testfile_in_fname = f
+                testfile_out_fname = f.replace(f.split('/')[-3],'gr')
+                if not os.path.exists(testfile_out_fname):
+                  d = os.path.dirname(testfile_out_fname)
+                  if not os.path.exists(d): 
+                      os.makedirs(d) 
+                  fptr_in = nc.Dataset(testfile_in_fname, 'r') # pylint: disable=E1101
+                  if (len(fptr_in[f.split('/')[-4]].dimensions) == 4 or len(fptr_in[f.split('/')[-4]].dimensions) == 3):
+                    fptr_out = nc.Dataset(testfile_out_fname+'.tmp', 'w') # pylint: disable=E1101
+
+                    remap.copy_time(fptr_in, fptr_out)
+                    remap.copy_gAttr(fptr_in, fptr_out)
+
+                    if dim_names['depth'] in fptr_in.dimensions:
+                        matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
+                        matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
+                    else:
+                        matrix_2d.dst_grid.def_dims_common(fptr_out, dim_names)
+                        matrix_2d.dst_grid.write_vars_common(fptr_out, dim_names)
+
+                    field_names = []
+                    for v in fptr_in.variables:
+                        if v not in ['lat', 'lat_bnds', 'lon', 'lon_bnds', 'lev', 'lev_bnds', 'time', 'time_bnds', 'nlat', 'nlon']:
+                            field_names.append(v)            
+
+                    for field_name in field_names:
+
+                        varid_out = remap.def_var(field_name, fptr_in, fptr_out, dim_names)
+
+                        # use appropriate matrix for regridding
+                        c = args.chunk
+                        if c is None:
+                            c = 1
+                        else:
+                            c = int(c)  
+                        try: 
+                            if dim_names['depth'] in varid_out.dimensions:
+                                #print ("Running a 3D variable")
+                                b = 0
+                                for i in range(0,fptr_in.dimensions['time'].size,c):
+                                    if b+c >= fptr_in.dimensions['time'].size:
+                                        c = fptr_in.dimensions['time'].size - b
+                                    varid_out[b:(b+c),:,:,:] = matrix_3d.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])#,
+                                                                       #fill_value=getattr(varid_out, 'missing_value'))
+                                    b = b+c
+                            else:
+                                #print ("Running a 2D variable")
+                                b = 0
+                                for i in range(0,fptr_in.dimensions['time'].size,c):
+                                    if b+c >= fptr_in.dimensions['time'].size:
+                                        c = fptr_in.dimensions['time'].size - b
+                                    varid_out[b:(b+c),:,:] = matrix_2d.remap_var(fptr_in.variables[field_name][b:(b+c),:,:])#,
+                                                                   #fill_value=getattr(varid_out, 'missing_value'))
+                                    b = b+c
+                        except TypeError as e:
+                            print ('Type Error for variable '+field_name)
+                    fptr_in.close()
+                    fptr_out.close()
+                    try:
+                        os.rename(testfile_out_fname+'.tmp',testfile_out_fname)
+                    except OSError as e:
+                        print('Could not create ',testfile_out_fname)
+                  else: 
+                    print "Not creating ",testfile_out_fname
+    scomm.sync()
+    timer.stop("Total Time")
+    if rank == 0:
+        print('************************************************************')
+        print('Total Time: {0} seconds'.format(timer.get_time("Total Time")))
+        print('************************************************************')
+
+#===================================================================================================
+# Command-line Operation
+#===================================================================================================
+if __name__ == '__main__':
+    main()
