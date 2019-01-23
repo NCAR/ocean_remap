@@ -104,12 +104,20 @@ def main(argv=None):
     matrix_2d_fname = 'POP_gx1v7_to_latlon_1x1_0E_mask_conserve_20181015.nc'
     matrix_2d = remap.ocean_remap(args.matrix_2d_fname)
 
-    matrix_3d_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
-    matrix_3d = remap.ocean_remap(args.matrix_3d_fname)
+#    matrix_3d_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
+#    matrix_3d = remap.ocean_remap(args.matrix_3d_fname)
+    matrix_3d_partial_fname = 'POP_gx1v7_to_latlon_1x1_0E_partialdepth_conserve_20190121.nc'
+    matrix_3d_partial = remap.ocean_remap(args.matrix_3d_partial_fname)
+
+    matrix_3d_full_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
+    matrix_3d_full = remap.ocean_remap(args.matrix_3d_full_fname)
+
 
     # names of coordinate dimensions in output files
-    dim_names = {'depth': 'olevel', 'lat': 'latitude', 'lon': 'longitude'}
-    dim_names = {'depth': 'lev', 'lat': 'lat', 'lon': 'lon'}
+#    dim_names = {'depth': 'olevel', 'lat': 'latitude', 'lon': 'longitude'}
+#    dim_names = {'depth': 'lev', 'lat': 'lat', 'lon': 'lon'}
+    dim_names_partial = {'depth': 'lev_partial', 'lat': 'lat', 'lon': 'lon'}
+    dim_names_full = {'depth': 'lev', 'lat': 'lat', 'lon': 'lon'}
 
     scomm.sync()
     # Have only root create these files
@@ -123,9 +131,12 @@ def main(argv=None):
                 if not os.path.exists(d):
                     os.makedirs(d)
                 fptr_out = nc.Dataset(new_outdir, 'w') # pylint: disable=E1101
-                matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
-                matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
-                matrix_3d.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names, var_name)
+#                matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
+#                matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
+#                matrix_3d.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names, var_name)
+                matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
+                matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
+                matrix_3d_full.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names_full, var_name)
 
     # Create a master slave parallel protocol
     GWORK_TAG = 10 # global comm mpi tag
@@ -154,8 +165,13 @@ def main(argv=None):
                     remap.copy_gAttr(fptr_in, fptr_out)
 
                     if dim_names['depth'] in fptr_in.dimensions:
-                        matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
-                        matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
+#                        matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
+#                        matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
+                        matrix_3d_partial.dst_grid.def_dims_common(fptr_out, dim_names_partial)
+                        matrix_3d_partial.dst_grid.write_vars_common(fptr_out, dim_names_partial)
+
+                        matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
+                        matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
                     else:
                         matrix_2d.dst_grid.def_dims_common(fptr_out, dim_names)
                         matrix_2d.dst_grid.write_vars_common(fptr_out, dim_names)
@@ -182,8 +198,12 @@ def main(argv=None):
                                 for i in range(0,fptr_in.dimensions['time'].size,c):
                                     if b+c >= fptr_in.dimensions['time'].size:
                                         c = fptr_in.dimensions['time'].size - b
-                                    varid_out[b:(b+c),:,:,:] = matrix_3d.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])#,
+#                                    varid_out[b:(b+c),:,:,:] = matrix_3d.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])#,
                                                                        #fill_value=getattr(varid_out, 'missing_value'))
+                                    if dim_names_full['depth'] in varid_out.dimensions:
+                                        varid_out[b:(b+c),:,:,:] = matrix_3d_full.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])
+                                    elif dim_names_partial['depth'] in varid_out.dimensions:
+                                        varid_out[b:(b+c),:,:,:] = matrix_3d_partial.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])  
                                     b = b+c
                             else:
                                 #print ("Running a 2D variable")
