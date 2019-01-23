@@ -180,12 +180,17 @@ class ocean_remap_grid(object):
         Define common dimensions in an open netCDF4 file
         """
 
+        dims_dict = {}
         if self.dims.size == 3:
-            fptr_out.createDimension(dim_names['depth'], self.dims[-3])
-        if not 'd2' in fptr_out.dimensions:
-            fptr_out.createDimension('d2', 2)
-        fptr_out.createDimension(dim_names['lat'], self.dims[-2])
-        fptr_out.createDimension(dim_names['lon'], self.dims[-1])
+            dims_dict[dim_names['depth']] = self.dims[0]
+            dims_dict['d2'] = 2
+        dims_dict[dim_names['lat']] = self.dims[-2]
+        dims_dict[dim_names['lon']] = self.dims[-1]
+
+        for dimname, dimlen in dims_dict.items():
+            if not dimname in fptr_out.dimensions.keys():
+                fptr_out.createDimension(dimname, dimlen)
+
 
     def write_vars_common(self, fptr_out, dim_names):
         """
@@ -198,55 +203,59 @@ class ocean_remap_grid(object):
         # depth and depth_bnds
         if self.dims.size == 3:
             depth_name = dim_names['depth']
-            varid = fptr_out.createVariable(depth_name, 'f8', (depth_name,))
-            varid.axis = 'Z'
-            varid.bounds = depth_name+'_bnds'
-            varid.long_name = 'ocean model level'
-            varid.positive = 'down'
-            varid.standard_name = 'olevel'
-            varid.units = 'm'
-            varid[:] = self.depth
+            if not depth_name in fptr_out.variables.keys():
+                varid = fptr_out.createVariable(depth_name, 'f8', (depth_name,))
+                varid.axis = 'Z'
+                varid.bounds = depth_name+'_bnds'
+                varid.long_name = 'ocean model level'
+                varid.positive = 'down'
+                varid.standard_name = 'olevel'
+                varid.units = 'm'
+                varid[:] = self.depth
 
-            varid = fptr_out.createVariable(depth_name+'_bnds', 'f8', (depth_name, 'd2'))
-            varid.long_name = 'depth bounds'
-            varid.units = 'm'
-            varid[:] = self.depth_bnds
+            if not depth_name+'_bnds' in fptr_out.variables.keys():
+                varid = fptr_out.createVariable(depth_name+'_bnds', 'f8', (depth_name, 'd2'))
+                varid.long_name = 'depth bounds'
+                varid.units = 'm'
+                varid[:] = self.depth_bnds
 
         # latitude
-        if self.lat.ndim == 1:
-            varid = fptr_out.createVariable(lat_name, 'f8', (lat_name,))
-        else:
-            varid = fptr_out.createVariable(lat_name, 'f8', (lat_name, lon_name))
-        if self.lat.ndim == 1:
-            varid.axis = 'Y'
-            varid.bounds = lat_name+'_bnds'
-        varid.long_name = 'latitude'
-        varid.standard_name = 'latitude'
-        varid.units = 'degrees_north'
-        varid[:] = self.lat
+        if not lat_name in fptr_out.variables.keys():
+            if self.lat.ndim == 1:
+                varid = fptr_out.createVariable(lat_name, 'f8', (lat_name,))
+            else:
+                varid = fptr_out.createVariable(lat_name, 'f8', (lat_name, lon_name))
+            if self.lat.ndim == 1:
+                varid.axis = 'Y'
+                varid.bounds = lat_name+'_bnds'
+            varid.long_name = 'latitude'
+            varid.standard_name = 'latitude'
+            varid.units = 'degrees_north'
+            varid[:] = self.lat
 
         # latitude bounds, currently only supported when latitude is 1d
-        if self.lat.ndim == 1:
+        if self.lat.ndim == 1 and not lat_name+'_bnds' in fptr_out.variables.keys():
             varid = fptr_out.createVariable(lat_name+'_bnds', 'f8', (lat_name, 'd2'))
             varid.long_name = 'latitude bounds'
             varid.units = 'degrees_north'
             varid[:] = _var_bnds_1d(self.lat, lextrap=True)
 
         # longitude
-        if self.lon.ndim == 1:
-            varid = fptr_out.createVariable(lon_name, 'f8', (lon_name,))
-        else:
-            varid = fptr_out.createVariable(lon_name, 'f8', (lat_name, lon_name))
-        if self.lon.ndim == 1:
-            varid.axis = 'X'
-            varid.bounds = lon_name+'_bnds'
-        varid.long_name = 'longitude'
-        varid.standard_name = 'longitude'
-        varid.units = 'degrees_east'
-        varid[:] = self.lon
+        if not lon_name in fptr_out.variables.keys():
+            if self.lon.ndim == 1:
+                varid = fptr_out.createVariable(lon_name, 'f8', (lon_name,))
+            else:
+                varid = fptr_out.createVariable(lon_name, 'f8', (lat_name, lon_name))
+            if self.lon.ndim == 1:
+                varid.axis = 'X'
+                varid.bounds = lon_name+'_bnds'
+            varid.long_name = 'longitude'
+            varid.standard_name = 'longitude'
+            varid.units = 'degrees_east'
+            varid[:] = self.lon
 
         # longitude bounds, currently only supported when longitude is 1d
-        if self.lon.ndim == 1:
+        if self.lon.ndim == 1 and not lon_name+'_bnds' in fptr_out.variables.keys():
             varid = fptr_out.createVariable(lon_name+'_bnds', 'f8', (lon_name, 'd2'))
             varid.long_name = 'longitude bounds'
             varid.units = 'degrees_east'
@@ -374,7 +383,7 @@ def copy_time(fptr_in, fptr_out):
         setattr(varid_out, att_name, getattr(varid_in, att_name))
     varid_out[:] = varid_in[:]
 
-def def_var(field_name, fptr_in, fptr_out, dim_names):
+def def_var(field_name, fptr_in, fptr_out, dim_names_partial, dim_names_full):
     """
     define var in output file, based on varid_in, copying over particular attributes
     """
@@ -385,9 +394,11 @@ def def_var(field_name, fptr_in, fptr_out, dim_names):
     dims_out = ()
     if varid_in.dimensions[0] == 'time':
         dims_out = dims_out + ('time',)
+    if 'z_t_150m' in varid_in.dimensions:
+        dims_out = dims_out + (dim_names_partial['depth'],)
     if 'lev' in varid_in.dimensions:
-        dims_out = dims_out + (dim_names['depth'],)
-    dims_out = dims_out + (dim_names['lat'], dim_names['lon'])
+        dims_out = dims_out + (dim_names_full['depth'],)
+    dims_out = dims_out + (dim_names_full['lat'], dim_names_full['lon'])
 
     # create output variable, using _FillValue of input variable
     varid_out = fptr_out.createVariable(field_name, varid_in.datatype, dims_out,
