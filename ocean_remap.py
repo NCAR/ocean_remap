@@ -394,10 +394,11 @@ def def_var(field_name, fptr_in, fptr_out, dim_names_partial, dim_names_full):
     dims_out = ()
     if varid_in.dimensions[0] == 'time':
         dims_out = dims_out + ('time',)
-    if 'z_t_150m' in varid_in.dimensions:
-        dims_out = dims_out + (dim_names_partial['depth'],)
     if 'lev' in varid_in.dimensions:
-        dims_out = dims_out + (dim_names_full['depth'],)
+        if varid_in.shape[1] == 15:
+            dims_out = dims_out + (dim_names_partial['depth'],)
+        else:
+              dims_out = dims_out + (dim_names_full['depth'],)
     dims_out = dims_out + (dim_names_full['lat'], dim_names_full['lon'])
 
     # create output variable, using _FillValue of input variable
@@ -410,7 +411,6 @@ def def_var(field_name, fptr_in, fptr_out, dim_names_partial, dim_names_full):
     for att_name in varid_in.ncattrs():
         if att_name not in ['missing_value','_FillValue']:
             setattr(varid_out, att_name, getattr(varid_in, att_name))
-            #print('    '+att_name+' copied')
     # new variable attribute
     setattr(varid_out, 'comment', 'Model data on the 1x1 grid includes values in all cells for which ocean cells on the native grid cover more than 52.5 percent of the 1x1 grid cell. This 52.5 percent cutoff was chosen to produce ocean surface area on the 1x1 grid as close as possible to ocean surface area on the native grid, while not introducing fractional cell coverage.')
     return varid_out
