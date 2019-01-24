@@ -27,8 +27,11 @@ def cli(argv=None):
     parser.add_argument('-2', '--matrix_2d_fname', default=None,
                         help=('Full path to the matrix 2d file.'))
 
-    parser.add_argument('-3', '--matrix_3d_fname', default=None,
-                        help=('Full path to the matrix 3d file.'))
+    parser.add_argument('-3', '--matrix_3d_full_fname', default=None,
+                        help=('Full path to the matrix 3d full level file.'))
+
+    parser.add_argument('-5', '--matrix_3d_partial_fname', default=None,
+                        help=('Full path to the matrix 3d partial level file.'))
 
     parser.add_argument('-i', '--indir', default=None, 
                         help=('Full path to a base directory to find files to regrid.  All files with the *.nc found'
@@ -48,7 +51,8 @@ def main(argv=None):
     print 'cmip6:',args.cmip6
     print 'filelist:',args.filelist
     print 'matrix_2d_fname:',args.matrix_2d_fname
-    print 'matrix_3d_fname:',args.matrix_3d_fname
+    print 'matrix_3d_full_fname:',args.matrix_3d_full_fname
+    print 'matrix_3d_partial_fname:',args.matrix_3d_partial_fname
     print 'indir:',args.indir
     print 'outdir:',args.outdir
     print 'chunk size:',args.chunk
@@ -106,10 +110,10 @@ def main(argv=None):
 
 #    matrix_3d_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
 #    matrix_3d = remap.ocean_remap(args.matrix_3d_fname)
-    matrix_3d_partial_fname = 'POP_gx1v7_to_latlon_1x1_0E_partialdepth_conserve_20190121.nc'
+#    matrix_3d_partial_fname = 'POP_gx1v7_to_latlon_1x1_0E_partialdepth_conserve_20190121.nc'
     matrix_3d_partial = remap.ocean_remap(args.matrix_3d_partial_fname)
 
-    matrix_3d_full_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
+#    matrix_3d_full_fname = 'POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc'
     matrix_3d_full = remap.ocean_remap(args.matrix_3d_full_fname)
 
 
@@ -131,9 +135,6 @@ def main(argv=None):
                 if not os.path.exists(d):
                     os.makedirs(d)
                 fptr_out = nc.Dataset(new_outdir, 'w') # pylint: disable=E1101
-#                matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
-#                matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
-#                matrix_3d.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names, var_name)
                 matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
                 matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
                 matrix_3d_full.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names_full, var_name)
@@ -164,26 +165,26 @@ def main(argv=None):
                     remap.copy_time(fptr_in, fptr_out)
                     remap.copy_gAttr(fptr_in, fptr_out)
 
-                    if dim_names['depth'] in fptr_in.dimensions:
-#                        matrix_3d.dst_grid.def_dims_common(fptr_out, dim_names)
-#                        matrix_3d.dst_grid.write_vars_common(fptr_out, dim_names)
-                        matrix_3d_partial.dst_grid.def_dims_common(fptr_out, dim_names_partial)
-                        matrix_3d_partial.dst_grid.write_vars_common(fptr_out, dim_names_partial)
-
-                        matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
-                        matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
+                    #if dim_names_partial['depth'] in fptr_in.dimensions:
+                    if dim_names_full['depth'] in fptr_in.dimensions or dim_names_partial['depth'] in fptr_in.dimensions:
+                        if fptr_in.dimensions['lev'].size == 15:
+                            matrix_3d_partial.dst_grid.def_dims_common(fptr_out, dim_names_partial)
+                            matrix_3d_partial.dst_grid.write_vars_common(fptr_out, dim_names_partial)
+                        else:
+                            matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
+                            matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
                     else:
-                        matrix_2d.dst_grid.def_dims_common(fptr_out, dim_names)
-                        matrix_2d.dst_grid.write_vars_common(fptr_out, dim_names)
+                        matrix_2d.dst_grid.def_dims_common(fptr_out, dim_names_full)
+                        matrix_2d.dst_grid.write_vars_common(fptr_out, dim_names_full)
 
                     field_names = []
                     for v in fptr_in.variables:
-                        if v not in ['lat', 'lat_bnds', 'lon', 'lon_bnds', 'lev', 'lev_bnds', 'time', 'time_bnds', 'nlat', 'nlon']:
+                        if v not in ['lat', 'lat_bnds', 'lon', 'lon_bnds', 'lev', 'lev_partial', 'lev_bnds', 'time', 'time_bnds', 'nlat', 'nlon']:
                             field_names.append(v)            
 
                     for field_name in field_names:
 
-                        varid_out = remap.def_var(field_name, fptr_in, fptr_out, dim_names)
+                        varid_out = remap.def_var(field_name, fptr_in, fptr_out, dim_names_partial, dim_names_full)
 
                         # use appropriate matrix for regridding
                         c = args.chunk
@@ -191,22 +192,31 @@ def main(argv=None):
                             c = 1
                         else:
                             c = int(c)  
-                        try: 
-                            if dim_names['depth'] in varid_out.dimensions:
-                                #print ("Running a 3D variable")
-                                b = 0
-                                for i in range(0,fptr_in.dimensions['time'].size,c):
-                                    if b+c >= fptr_in.dimensions['time'].size:
-                                        c = fptr_in.dimensions['time'].size - b
-#                                    varid_out[b:(b+c),:,:,:] = matrix_3d.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])#,
-                                                                       #fill_value=getattr(varid_out, 'missing_value'))
-                                    if dim_names_full['depth'] in varid_out.dimensions:
+                        whichOne = "None"
+                        try:
+                            if dim_names_full['depth'] in varid_out.dimensions or dim_names_partial['depth'] in varid_out.dimensions:
+                                #print ("Running a 3D variable "+ field_name + str(len(varid_out.shape)))
+                                if fptr_in.dimensions['lev'].size == 15:
+                                    b = 0
+                                    whichOne = "Partial Depth"
+                                    for i in range(0,fptr_in.dimensions['time'].size,c):
+                                        if b+c >= fptr_in.dimensions['time'].size:
+                                            c = fptr_in.dimensions['time'].size - b
+                                        temp = matrix_3d_partial.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])
+                                        #print temp.shape, varid_out.shape, b, b+c
+                                        varid_out[b:(b+c),:,:,:] = matrix_3d_partial.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])
+                                        b = b+c
+                                else:
+                                    b = 0
+                                    whichOne = "Full Depth"
+                                    for i in range(0,fptr_in.dimensions['time'].size,c):
+                                        if b+c >= fptr_in.dimensions['time'].size:
+                                            c = fptr_in.dimensions['time'].size - b
                                         varid_out[b:(b+c),:,:,:] = matrix_3d_full.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])
-                                    elif dim_names_partial['depth'] in varid_out.dimensions:
-                                        varid_out[b:(b+c),:,:,:] = matrix_3d_partial.remap_var(fptr_in.variables[field_name][b:(b+c),:,:,:])  
-                                    b = b+c
+                                        b = b+c
                             else:
-                                #print ("Running a 2D variable")
+                                #print ("Running a 2D variable"+ field_name + str(len(varid_out.shape)))
+                                whichOne = "2D"
                                 b = 0
                                 for i in range(0,fptr_in.dimensions['time'].size,c):
                                     if b+c >= fptr_in.dimensions['time'].size:
@@ -215,7 +225,7 @@ def main(argv=None):
                                                                    #fill_value=getattr(varid_out, 'missing_value'))
                                     b = b+c
                         except TypeError as e:
-                            print ('Type Error for variable '+field_name)
+                            print ('Type Error for variable '+field_name+", thought it was "+whichOne)
                     fptr_in.close()
                     fptr_out.close()
                     try:
