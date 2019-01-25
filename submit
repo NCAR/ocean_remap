@@ -46,6 +46,5 @@ module load numpy/1.13.3
 today="$(date '+%Y%m%d-%H%M%S')"
 
 
-mpiexec_mpt dplace ./run -6 ocn_vars.txt -2 POP_gx1v7_to_latlon_1x1_0E_mask_conserve_20181015.nc -3 POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc -5 POP_gx1v7_to_latlon_1x1_0E_partialdepth_conserve_20190121.nc -i /glade/collections/cdg/cmip6/3/  -c 10 >> /gpfs/fs1/work/cmip6/cases/cesm2.1-exp003/b.e21.B1850.f09_g17.CMIP6-piControl.001/postprocess/logs/ocn.remap.log.$today 2>&1
+mpiexec_mpt dplace ./run -6 ocn_vars.txt -2 POP_gx1v7_to_latlon_1x1_0E_mask_conserve_20181015.nc -3 POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc -5 POP_gx1v7_to_latlon_1x1_0E_partialdepth_conserve_20190121.nc -i /glade/collections/cdg/cmip6/15/  -c 10 >> /gpfs/fs1/work/cmip6/cases/b.e21.BHIST.f09_g17.CMIP6-historical.001/postprocess/logs/ocn.remap.log.$today 2>&1
 
-#mpiexec_mpt dplace ./run -6 ocn_vars.txt -2 POP_gx1v7_to_latlon_1x1_0E_mask_conserve_20181015.nc -3 POP_gx1v7_to_latlon_1x1_0E_fulldepth_conserve_20181015.nc -i  /glade/scratch/cmip6/archive/CMIP6_DATA/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM-03/CMIP6/ -c 10 >> /gpfs/fs1/work/cmip6/cases/cesm2.1-exp003/b.e21.BWHIST.f09_g17.CMIP6-historical-WACCM.001/postprocess/logs/ocn.remap.log.$today 2>&1

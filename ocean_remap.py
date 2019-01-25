@@ -261,7 +261,7 @@ class ocean_remap_grid(object):
             varid.units = 'degrees_east'
             varid[:] = _var_bnds_1d(self.lon, lextrap=True)
 
-    def write_var_CMIP_Ofx(self, fptr_out, dim_names, var_name):
+    def write_var_CMIP_Ofx(self, fptr_out, varid_in, dim_names, var_name):
         """
         Define and write CMIP Ofx var to an open netCDF4 file
         Also set global attribute external_variables from cell_meassures, if appropriate
@@ -276,21 +276,27 @@ class ocean_remap_grid(object):
         if var_name == 'areacello':
             dims_out = (dim_names['lat'], dim_names['lon'])
             varid = fptr_out.createVariable(var_name, 'f8', dims_out)
-            varid.cell_methods = 'area: sum'
-            varid.long_name = 'Grid-Cell Area'
-            varid.standard_name = 'cell_area'
-            varid.units = 'm2'
+            #varid.cell_methods = 'area: sum'
+            #varid.long_name = 'Grid-Cell Area'
+            #varid.standard_name = 'cell_area'
+            #varid.units = 'm2'
+            for att_name in varid_in.ncattrs():
+                if att_name not in ['missing_value','_FillValue']:
+                    setattr(varid, att_name, getattr(varid_in, att_name))
             varid[:] = area
             return
 
         if var_name == 'deptho':
             dims_out = (dim_names['lat'], dim_names['lon'])
             varid = fptr_out.createVariable(var_name, 'f8', dims_out)
-            varid.cell_measures = 'area: areacello'
-            varid.cell_methods = 'area: mean where sea'
-            varid.long_name = 'Sea Floor Depth Below Geoid'
-            varid.standard_name = 'sea_floor_depth_below_geoid'
-            varid.units = 'm'
+            #varid.cell_measures = 'area: areacello'
+            #varid.cell_methods = 'area: mean where sea'
+            #varid.long_name = 'Sea Floor Depth Below Geoid'
+            #varid.standard_name = 'sea_floor_depth_below_geoid'
+            #varid.units = 'm'
+            for att_name in varid_in.ncattrs():
+                if att_name not in ['missing_value','_FillValue']:
+                    setattr(varid, att_name, getattr(varid_in, att_name))
             mask3d = self.mask.view()
             mask3d.shape = tuple(self.dims)
             num_active_layers = np.count_nonzero(mask3d, axis=0)
@@ -303,11 +309,14 @@ class ocean_remap_grid(object):
         if var_name == 'thkcello':
             dims_out = (dim_names['depth'], dim_names['lat'], dim_names['lon'])
             varid = fptr_out.createVariable(var_name, 'f8', dims_out)
-            varid.cell_measures = 'area: areacello volume: volcello'
-            varid.cell_methods = 'area: mean'
-            varid.long_name = 'Ocean Model Cell Thickness'
-            varid.standard_name = 'cell_thickness'
-            varid.units = 'm'
+            #varid.cell_measures = 'area: areacello volume: volcello'
+            #varid.cell_methods = 'area: mean'
+            #varid.long_name = 'Ocean Model Cell Thickness'
+            #varid.standard_name = 'cell_thickness'
+            #varid.units = 'm'
+            for att_name in varid_in.ncattrs():
+                if att_name not in ['missing_value','_FillValue']:
+                    setattr(varid, att_name, getattr(varid_in, att_name))
             varid[:] = thkcello_1d[:, np.newaxis, np.newaxis] * np.ones(self.dims)
             fptr_out.external_variables = 'areacello volcello'
             return
@@ -315,11 +324,14 @@ class ocean_remap_grid(object):
         if var_name == 'volcello':
             dims_out = (dim_names['depth'], dim_names['lat'], dim_names['lon'])
             varid = fptr_out.createVariable(var_name, 'f8', dims_out)
-            varid.cell_measures = 'area: areacello volume: volcello'
-            varid.cell_methods = 'area: mean'
-            varid.long_name = 'Ocean Grid-Cell Volume'
-            varid.standard_name = 'ocean_volume'
-            varid.units = 'm3'
+            #varid.cell_measures = 'area: areacello volume: volcello'
+            #varid.cell_methods = 'area: mean'
+            #varid.long_name = 'Ocean Grid-Cell Volume'
+            #varid.standard_name = 'ocean_volume'
+            #varid.units = 'm3'
+            for att_name in varid_in.ncattrs():
+                if att_name not in ['missing_value','_FillValue']:
+                    setattr(varid, att_name, getattr(varid_in, att_name))
             varid[:] = thkcello_1d[:, np.newaxis, np.newaxis] * area
             fptr_out.external_variables = 'areacello volcello'
             return

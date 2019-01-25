@@ -132,12 +132,19 @@ def main(argv=None):
             for var_name in ('areacello', 'deptho', 'thkcello', 'volcello'):
                 new_outdir = temp.replace(temp.split('/')[-4],var_name).replace(temp.split('/')[-5],'Ofx').replace(temp.split('/')[-3],'gr').replace('_'+temp.split('_')[-1],'')+'.nc' 
                 d = os.path.dirname(new_outdir)
-                if not os.path.exists(d):
-                    os.makedirs(d)
-                fptr_out = nc.Dataset(new_outdir, 'w') # pylint: disable=E1101
-                matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
-                matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
-                matrix_3d_full.dst_grid.write_var_CMIP_Ofx(fptr_out, dim_names_full, var_name)
+                existing_file = new_outdir.replace('gr','gn')
+                if os.path.isfile(existing_file): # only create the file if it exists on the native grid.  done to get correct attributes
+                    if not os.path.exists(d):
+                        os.makedirs(d)
+                    fptr_out = nc.Dataset(new_outdir, 'w') # pylint: disable=E1101
+                    fptr_in = nc.Dataset(existing_file, 'r')
+                    var_in = fptr_in[var_name]
+                    remap.copy_gAttr(fptr_in, fptr_out)
+                    matrix_3d_full.dst_grid.def_dims_common(fptr_out, dim_names_full)
+                    matrix_3d_full.dst_grid.write_vars_common(fptr_out, dim_names_full)
+                    matrix_3d_full.dst_grid.write_var_CMIP_Ofx(fptr_out, var_in, dim_names_full, var_name)
+                    fptr_out.close()
+                    fptr_in.close()
 
     # Create a master slave parallel protocol
     GWORK_TAG = 10 # global comm mpi tag
