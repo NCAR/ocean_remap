@@ -456,6 +456,7 @@ def main():
     field_names = ('HT', 'REGION_MASK', 'SSH', 'SHF', 'POC_FLUX_100m', 'SALT')
 
     fptr_in = nc.Dataset(testfile_in_fname, 'r') # pylint: disable=E1101
+    fptr_in.set_auto_scale(False)
     fptr_out = nc.Dataset(testfile_out_fname, 'w') # pylint: disable=E1101
 
     copy_time(fptr_in, fptr_out)
@@ -466,6 +467,7 @@ def main():
     for field_name in field_names:
 
         varid_out = def_var(field_name, fptr_in, fptr_out, dim_names)
+        varid_out.set_auto_scale(False)
 
         # use appropriate matrix for regridding
         try:
